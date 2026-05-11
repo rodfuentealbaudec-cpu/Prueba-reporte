@@ -1,0 +1,794 @@
+import React, { useState } from 'react';
+import {
+  BarChart, Bar, PieChart, Pie, Cell,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, RadialBarChart, RadialBar, ComposedChart
+} from 'recharts';
+import {
+  TrendingUp, FileText, DollarSign, Users,
+  Gavel, Zap, Handshake, Package, Activity, Calendar,
+  Clock, CheckCircle2, AlertCircle, MapPin, Award
+} from 'lucide-react';
+
+// ============================================================
+// DATOS REALES CONSOLIDADOS — Gobierno Regional del Bío Bío
+// (incluye "Biobío Antigua" + unidad actual)
+// Período: Ene 2026 – 7 May 2026 · 112 OC válidas
+// Fuente: Mercado Público
+// ============================================================
+
+const KPI = {
+  ordenes: 112,
+  monto: 86044543679,
+  proveedores: 68,
+  tiempoMedHoras: 0.61,
+  tiempoPromHoras: 111.43,
+};
+
+const SERIE_MENSUAL = [
+  { mes: 'Ene', ordenes: 5,  monto: 4.1,     montoFull: 4095352 },
+  { mes: 'Feb', ordenes: 8,  monto: 177.6,   montoFull: 177579841 },
+  { mes: 'Mar', ordenes: 66, monto: 84356.2, montoFull: 84356163174 },
+  { mes: 'Abr', ordenes: 25, monto: 1479.3,  montoFull: 1479277459 },
+  { mes: 'May', ordenes: 7,  monto: 27.4,    montoFull: 27427853 },
+];
+
+const MODALIDADES = [
+  { nombre: 'Licitación / Sin Emisión', cantidad: 16, monto: 76487262358, color: '#1e3a5f' },
+  { nombre: 'Trato Directo',            cantidad: 17, monto: 8124448236,  color: '#8b4513' },
+  { nombre: 'Compra Ágil',              cantidad: 47, monto: 1385995073,  color: '#c97b3c' },
+  { nombre: 'Convenio Marco',           cantidad: 31, monto: 46838012,    color: '#5b8c5a' },
+];
+
+const SERIE_POR_MODALIDAD = [
+  { mes: 'Ene', 'Compra Ágil': 1,  'Convenio Marco': 4,  'Licitación / Sin Emisión': 1,  'Trato Directo': 0 },
+  { mes: 'Feb', 'Compra Ágil': 5,  'Convenio Marco': 0,  'Licitación / Sin Emisión': 0,  'Trato Directo': 3 },
+  { mes: 'Mar', 'Compra Ágil': 25, 'Convenio Marco': 18, 'Licitación / Sin Emisión': 12, 'Trato Directo': 11 },
+  { mes: 'Abr', 'Compra Ágil': 14, 'Convenio Marco': 6,  'Licitación / Sin Emisión': 2,  'Trato Directo': 3 },
+  { mes: 'May', 'Compra Ágil': 2,  'Convenio Marco': 3,  'Licitación / Sin Emisión': 2,  'Trato Directo': 0 },
+];
+
+const ESTADOS_OC = [
+  { estado: 'Recepción Conforme',   cantidad: 61, color: '#5b8c5a', categoria: 'completada' },
+  { estado: 'Aceptada',             cantidad: 26, color: '#3d6b95', categoria: 'completada' },
+  { estado: 'Guardada',             cantidad: 9,  color: '#a8a8a8', categoria: 'en_curso' },
+  { estado: 'Eliminada',            cantidad: 6,  color: '#9c3a3a', categoria: 'fallida' },
+  { estado: 'Cancelada',            cantidad: 3,  color: '#6b3a3a', categoria: 'fallida' },
+  { estado: 'Enviada a proveedor',  cantidad: 3,  color: '#c97b3c', categoria: 'en_curso' },
+  { estado: 'No aceptada',          cantidad: 3,  color: '#4a1a1a', categoria: 'fallida' },
+];
+
+const TOP_PROVEEDORES = [
+  { nombre: 'AUTOMATICA Y REGULACION S.A.',                rut: '87.606.700-5', monto: 50244455842, ordenes: 1 },
+  { nombre: 'ASESORIAS SALAZAR ALVARADO SPA',              rut: '76.522.407-1', monto: 26037028759, ordenes: 2 },
+  { nombre: 'HALTER SPA',                                   rut: '76.889.483-3', monto: 3712578541,  ordenes: 1 },
+  { nombre: 'OPCIONES SA SISTEMAS DE INFORMACION',         rut: '96.523.180-3', monto: 2299522204,  ordenes: 1 },
+  { nombre: 'JOSE LUIS PAVEZ SPA',                          rut: '76.939.480-k', monto: 984118457,   ordenes: 3 },
+  { nombre: 'TELECOMSAT SPA',                               rut: '77.269.996-4', monto: 455835093,   ordenes: 1 },
+  { nombre: 'COMERCIALIZADORA REICOL SPA',                 rut: '76.356.855-5', monto: 435722665,   ordenes: 1 },
+  { nombre: 'COMERCIAL COMEXA LIMITADA',                   rut: '77.781.521-0', monto: 388453485,   ordenes: 1 },
+  { nombre: 'DIARIO EL SUR S.A.',                          rut: '76.564.940-4', monto: 256012884,   ordenes: 10 },
+  { nombre: 'SOC. COMERCIALIZADORA CALVO POBLETE LTDA.',   rut: '76.292.400-5', monto: 240000033,   ordenes: 1 },
+];
+
+const COMPRAS_AGILES = {
+  total: 47,
+  monto: 1385995073,
+  promedio: 29489257,
+  mediana: 3647231,
+  maximo: 435722665,
+};
+
+const TRATOS_DIRECTOS = {
+  total: 17,
+  monto: 8124448236,
+  promedio: 477908720,
+  guardadas: 8,
+  recepcion: 8,
+  aceptadas: 1,
+};
+
+const CONVENIO_MARCO = {
+  total: 31,
+  monto: 46838012,
+  conformes: 18,
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const fmtCLP = (n) => {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)} MMM`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)} MM`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n}`;
+};
+
+const fmtCLPFull = (n) =>
+  new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+
+const fmtNum = (n) => new Intl.NumberFormat('es-CL').format(n);
+
+const MODALIDAD_COLOR = {
+  'Compra Ágil': '#c97b3c',
+  'Convenio Marco': '#5b8c5a',
+  'Licitación / Sin Emisión': '#1e3a5f',
+  'Trato Directo': '#8b4513',
+};
+
+// ============================================================
+// COMPONENTES BASE
+// ============================================================
+
+const KPICard = ({ icon: Icon, label, value, subValue, hint }) => (
+  <div className="bg-white border border-stone-200 p-6 relative overflow-hidden group hover:border-stone-900 transition-colors duration-300">
+    <div className="absolute top-0 left-0 w-1 h-full bg-stone-900 transform scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-top" />
+    <div className="flex items-start justify-between mb-4">
+      <div className="p-2 bg-stone-100 border border-stone-200">
+        <Icon size={18} className="text-stone-700" strokeWidth={1.5} />
+      </div>
+    </div>
+    <div className="text-xs uppercase tracking-widest text-stone-500 mb-2 font-medium">{label}</div>
+    <div className="text-3xl font-serif text-stone-900 mb-1 tracking-tight">{value}</div>
+    {subValue && <div className="text-sm text-stone-600 mb-2">{subValue}</div>}
+    {hint && <div className="text-xs text-stone-500 mt-3 pt-3 border-t border-stone-100">{hint}</div>}
+  </div>
+);
+
+const TabButton = ({ active, onClick, children, icon: Icon }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center gap-2 px-5 py-3 text-sm font-medium tracking-wide transition-all relative whitespace-nowrap ${
+      active ? 'text-stone-900' : 'text-stone-500 hover:text-stone-800'
+    }`}
+  >
+    <Icon size={16} strokeWidth={1.5} />
+    <span className="uppercase text-xs tracking-widest">{children}</span>
+    {active && <div className="absolute bottom-0 left-0 right-0 h-px bg-stone-900" />}
+  </button>
+);
+
+const SectionTitle = ({ children, subtitle }) => (
+  <div className="mb-6">
+    <h2 className="text-2xl font-serif text-stone-900 tracking-tight">{children}</h2>
+    {subtitle && <p className="text-sm text-stone-500 mt-1">{subtitle}</p>}
+  </div>
+);
+
+const Card = ({ children, className = '', title, subtitle }) => (
+  <div className={`bg-white border border-stone-200 p-6 ${className}`}>
+    {title && (
+      <div className="mb-5 pb-4 border-b border-stone-100">
+        <h3 className="text-sm uppercase tracking-widest text-stone-700 font-medium">{title}</h3>
+        {subtitle && <p className="text-xs text-stone-500 mt-1">{subtitle}</p>}
+      </div>
+    )}
+    {children}
+  </div>
+);
+
+const TooltipCustom = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="bg-stone-900 text-stone-50 px-3 py-2 text-xs border border-stone-700 shadow-xl">
+      <div className="font-medium mb-1">{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className="w-2 h-2" style={{ background: p.color }} />
+          <span>{p.name}: </span>
+          <span className="font-mono">{fmtNum(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================================
+// VISTA GENERAL
+// ============================================================
+
+const VistaGeneral = () => {
+  const totalModalidades = MODALIDADES.reduce((s, m) => s + m.cantidad, 0);
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard icon={FileText} label="Órdenes Emitidas" value={fmtNum(KPI.ordenes)} hint="Ene – 7 May 2026" />
+        <KPICard icon={DollarSign} label="Monto Transado" value={fmtCLP(KPI.monto)} subValue={fmtCLPFull(KPI.monto)} hint="Total acumulado período" />
+        <KPICard icon={Users} label="Proveedores" value={fmtNum(KPI.proveedores)} hint="Únicos en el período" />
+        <KPICard icon={Clock} label="Tiempo Creación→Envío" value={`${KPI.tiempoMedHoras.toFixed(1)} h`} subValue="(mediana)" hint={`Promedio: ${KPI.tiempoPromHoras.toFixed(0)} h`} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card title="Monto por Modalidad" subtitle="Distribución del gasto" className="lg:col-span-2">
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={MODALIDADES} layout="vertical" margin={{ left: 20, right: 30 }}>
+              <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" horizontal={false} />
+              <XAxis type="number" stroke="#78716c" fontSize={11} tickFormatter={(v) => `$${(v / 1e9).toFixed(0)}MMM`} />
+              <YAxis dataKey="nombre" type="category" stroke="#44403c" fontSize={11} width={170} />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload;
+                  return (
+                    <div className="bg-stone-900 text-stone-50 px-3 py-2 text-xs border border-stone-700">
+                      <div className="font-medium mb-1">{label}</div>
+                      <div className="font-mono">{fmtCLPFull(d.monto)}</div>
+                      <div className="text-stone-400 mt-1">{d.cantidad} órdenes</div>
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="monto" radius={[0, 0, 0, 0]}>
+                {MODALIDADES.map((m, i) => <Cell key={i} fill={m.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card title="Mix de Órdenes" subtitle="Cantidad por modalidad">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={MODALIDADES} dataKey="cantidad" nameKey="nombre" cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2}>
+                {MODALIDADES.map((m, i) => <Cell key={i} fill={m.color} />)}
+              </Pie>
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload;
+                  return (
+                    <div className="bg-stone-900 text-stone-50 px-3 py-2 text-xs">
+                      <div className="font-medium">{d.nombre}</div>
+                      <div className="font-mono">{d.cantidad} OC</div>
+                    </div>
+                  );
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-1.5 mt-4 pt-4 border-t border-stone-100">
+            {MODALIDADES.map((m, i) => {
+              const pct = ((m.cantidad / totalModalidades) * 100).toFixed(1);
+              return (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2" style={{ background: m.color }} />
+                    <span className="text-stone-700">{m.nombre}</span>
+                  </div>
+                  <span className="font-mono text-stone-900">{m.cantidad} <span className="text-stone-400">({pct}%)</span></span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+      <Card title="Top 10 Proveedores" subtitle="Ranking por monto adjudicado en el período">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-stone-200 text-left">
+                <th className="pb-3 text-xs uppercase tracking-widest text-stone-500 font-medium">#</th>
+                <th className="pb-3 text-xs uppercase tracking-widest text-stone-500 font-medium">Proveedor</th>
+                <th className="pb-3 text-xs uppercase tracking-widest text-stone-500 font-medium">RUT</th>
+                <th className="pb-3 text-xs uppercase tracking-widest text-stone-500 font-medium text-right">Órdenes</th>
+                <th className="pb-3 text-xs uppercase tracking-widest text-stone-500 font-medium text-right">Monto</th>
+                <th className="pb-3 text-xs uppercase tracking-widest text-stone-500 font-medium">Participación</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TOP_PROVEEDORES.map((p, i) => {
+                const max = TOP_PROVEEDORES[0].monto;
+                const pct = (p.monto / max) * 100;
+                const pctTotal = ((p.monto / KPI.monto) * 100).toFixed(2);
+                return (
+                  <tr key={i} className="border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                    <td className="py-3 font-mono text-stone-400 text-xs">{String(i + 1).padStart(2, '0')}</td>
+                    <td className="py-3 text-stone-900 font-medium text-xs">{p.nombre}</td>
+                    <td className="py-3 font-mono text-stone-600 text-xs">{p.rut}</td>
+                    <td className="py-3 text-right font-mono text-stone-700">{p.ordenes}</td>
+                    <td className="py-3 text-right font-mono text-stone-900 font-medium">{fmtCLP(p.monto)}</td>
+                    <td className="py-3 w-40">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-stone-100">
+                          <div className="h-full bg-stone-800" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-stone-500 font-mono w-12 text-right">{pctTotal}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 pt-4 border-t border-stone-100 text-xs text-stone-500">
+          Top 10 representa{' '}
+          <span className="font-medium text-stone-900">
+            {((TOP_PROVEEDORES.reduce((s, p) => s + p.monto, 0) / KPI.monto) * 100).toFixed(1)}%
+          </span>{' '}
+          del monto total transado
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ============================================================
+// VISTA ESTADOS Y LICITACIONES
+// ============================================================
+
+const VistaLicitaciones = () => {
+  const totalEstados = ESTADOS_OC.reduce((s, e) => s + e.cantidad, 0);
+  const completadas = ESTADOS_OC.filter((e) => e.categoria === 'completada').reduce((s, e) => s + e.cantidad, 0);
+  const enCurso = ESTADOS_OC.filter((e) => e.categoria === 'en_curso').reduce((s, e) => s + e.cantidad, 0);
+  const fallidas = ESTADOS_OC.filter((e) => e.categoria === 'fallida').reduce((s, e) => s + e.cantidad, 0);
+  const tasaExito = ((completadas / totalEstados) * 100).toFixed(1);
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard icon={Gavel} label="Licitaciones / Sin Emisión" value="16" subValue={fmtCLP(76487262358)} hint="89% del monto total" />
+        <KPICard icon={CheckCircle2} label="Completadas" value={fmtNum(completadas)} subValue={`${tasaExito}% del total`} hint="Aceptada + Recepción Conforme" />
+        <KPICard icon={Clock} label="En Curso" value={fmtNum(enCurso)} hint="Guardada / Enviada" />
+        <KPICard icon={AlertCircle} label="Fallidas" value={fmtNum(fallidas)} hint="Eliminada / Cancelada / No aceptada" />
+      </div>
+
+      <Card title="Estado de Órdenes de Compra" subtitle="Distribución completa por estado de tramitación">
+        <div className="space-y-3">
+          {ESTADOS_OC.map((e, i) => {
+            const max = Math.max(...ESTADOS_OC.map((x) => x.cantidad));
+            const pct = (e.cantidad / max) * 100;
+            const pctTotal = ((e.cantidad / totalEstados) * 100).toFixed(1);
+            return (
+              <div key={i} className="group">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-3">
+                    <span className="w-3 h-3" style={{ background: e.color }} />
+                    <span className="text-sm text-stone-900 font-medium">{e.estado}</span>
+                    <span className="text-xs text-stone-400 uppercase tracking-wider">{e.categoria.replace('_', ' ')}</span>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-xs text-stone-500 font-mono">{pctTotal}%</span>
+                    <span className="font-serif text-xl text-stone-900">{e.cantidad}</span>
+                  </div>
+                </div>
+                <div className="w-full h-2 bg-stone-100">
+                  <div className="h-full transition-all duration-500" style={{ width: `${pct}%`, background: e.color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card title="Tasa de Éxito" subtitle="OC completadas sobre total emitidas">
+          <div className="flex items-center justify-center h-[260px]">
+            <div className="relative">
+              <ResponsiveContainer width={220} height={220}>
+                <RadialBarChart innerRadius="65%" outerRadius="90%" data={[{ name: 'Tasa', valor: parseFloat(tasaExito), fill: '#5b8c5a' }]} startAngle={90} endAngle={-270}>
+                  <RadialBar background={{ fill: '#f5f5f4' }} dataKey="valor" cornerRadius={0} />
+                </RadialBarChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-serif text-5xl text-stone-900">{tasaExito}%</span>
+                <span className="text-xs uppercase tracking-widest text-stone-500 mt-1">Tasa Éxito</span>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-stone-100">
+            <div className="text-center">
+              <div className="font-serif text-2xl text-stone-900">{completadas}</div>
+              <div className="text-xs text-stone-500 uppercase tracking-wider mt-1">Completadas</div>
+            </div>
+            <div className="text-center border-x border-stone-100">
+              <div className="font-serif text-2xl text-stone-900">{enCurso}</div>
+              <div className="text-xs text-stone-500 uppercase tracking-wider mt-1">En curso</div>
+            </div>
+            <div className="text-center">
+              <div className="font-serif text-2xl text-stone-900">{fallidas}</div>
+              <div className="text-xs text-stone-500 uppercase tracking-wider mt-1">Fallidas</div>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Licitaciones / Sin Emisión Automática" subtitle="Detalle del segmento de mayor monto">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="border border-stone-200 p-4">
+                <div className="text-xs uppercase tracking-widest text-stone-500 mb-1">Cantidad</div>
+                <div className="font-serif text-3xl text-stone-900">16</div>
+                <div className="text-xs text-stone-500 mt-1">14,3% de las OC</div>
+              </div>
+              <div className="border border-stone-200 p-4">
+                <div className="text-xs uppercase tracking-widest text-stone-500 mb-1">Monto</div>
+                <div className="font-serif text-3xl text-stone-900">$76,5</div>
+                <div className="text-xs text-stone-500 mt-1">MMM CLP · 88,9% del gasto</div>
+              </div>
+            </div>
+            <div className="border border-stone-200 p-4 bg-stone-50">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={16} className="text-amber-700 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
+                <div className="text-xs text-stone-700">
+                  <span className="font-medium text-stone-900 block mb-1">Concentración crítica</span>
+                  Una sola OC a Automática y Regulación S.A. representa el 58% del monto total del período.
+                </div>
+              </div>
+            </div>
+            <div className="border border-stone-200 p-4">
+              <div className="text-xs uppercase tracking-widest text-stone-500 mb-2">Ticket promedio</div>
+              <div className="font-mono text-stone-900">{fmtCLPFull(76487262358 / 16)}</div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// VISTA ÁGIL Y TRATO DIRECTO
+// ============================================================
+
+const VistaAgilDirecto = () => (
+  <div className="space-y-10">
+    <div>
+      <SectionTitle subtitle="Adquisiciones bajo modalidad de Compra Ágil (≤ 100 UTM)">Compras Ágiles</SectionTitle>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <KPICard icon={Zap} label="Operaciones" value={fmtNum(COMPRAS_AGILES.total)} hint="42,0% del total de OC" />
+        <KPICard icon={DollarSign} label="Monto Total" value={fmtCLP(COMPRAS_AGILES.monto)} hint="1,6% del gasto" />
+        <KPICard icon={Activity} label="Mediana" value={fmtCLP(COMPRAS_AGILES.mediana)} subValue={`Prom: ${fmtCLP(COMPRAS_AGILES.promedio)}`} hint="Ticket más representativo" />
+        <KPICard icon={Award} label="Mayor Operación" value={fmtCLP(COMPRAS_AGILES.maximo)} hint="Comercializadora Reicol SPA" />
+      </div>
+
+      <Card title="Evolución Mensual" subtitle="Operaciones de Compra Ágil por mes">
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={SERIE_POR_MODALIDAD}>
+            <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
+            <XAxis dataKey="mes" stroke="#78716c" fontSize={11} />
+            <YAxis stroke="#78716c" fontSize={11} />
+            <Tooltip content={<TooltipCustom />} />
+            <Bar dataKey="Compra Ágil" fill="#c97b3c" radius={[2, 2, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+    </div>
+
+    <div>
+      <SectionTitle subtitle="Adquisiciones por trato directo según causales legales">Tratos Directos</SectionTitle>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <KPICard icon={Handshake} label="Total Tratos" value={fmtNum(TRATOS_DIRECTOS.total)} hint="15,2% del total de OC" />
+        <KPICard icon={DollarSign} label="Monto" value={fmtCLP(TRATOS_DIRECTOS.monto)} hint="9,4% del gasto" />
+        <KPICard icon={Activity} label="Ticket Promedio" value={fmtCLP(TRATOS_DIRECTOS.promedio)} hint="Mucho mayor a Compra Ágil" />
+        <KPICard icon={Clock} label="Pendientes" value={fmtNum(TRATOS_DIRECTOS.guardadas)} hint="47% en estado 'Guardada'" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card title="Tratos Directos por Mes" subtitle="Volumen mensual">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={SERIE_POR_MODALIDAD}>
+              <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
+              <XAxis dataKey="mes" stroke="#78716c" fontSize={11} />
+              <YAxis stroke="#78716c" fontSize={11} />
+              <Tooltip content={<TooltipCustom />} />
+              <Bar dataKey="Trato Directo" fill="#8b4513" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card title="Estado de Tratos Directos" subtitle="Distribución del avance">
+          <div className="space-y-4 py-4">
+            <div>
+              <div className="flex justify-between items-baseline mb-2">
+                <span className="text-sm text-stone-700">Recepción Conforme</span>
+                <span className="font-serif text-2xl text-stone-900">{TRATOS_DIRECTOS.recepcion}</span>
+              </div>
+              <div className="w-full h-1.5 bg-stone-100">
+                <div className="h-full bg-emerald-700" style={{ width: '47%' }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between items-baseline mb-2">
+                <span className="text-sm text-stone-700">Guardada</span>
+                <span className="font-serif text-2xl text-stone-900">{TRATOS_DIRECTOS.guardadas}</span>
+              </div>
+              <div className="w-full h-1.5 bg-stone-100">
+                <div className="h-full bg-stone-400" style={{ width: '47%' }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between items-baseline mb-2">
+                <span className="text-sm text-stone-700">Aceptada</span>
+                <span className="font-serif text-2xl text-stone-900">{TRATOS_DIRECTOS.aceptadas}</span>
+              </div>
+              <div className="w-full h-1.5 bg-stone-100">
+                <div className="h-full bg-blue-700" style={{ width: '6%' }} />
+              </div>
+            </div>
+            <div className="pt-4 mt-4 border-t border-stone-100 text-xs text-stone-500">
+              <span className="font-medium text-amber-700">⚠ 8 de 17 tratos directos siguen en estado "Guardada"</span> — pendientes de emisión.
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+
+    <div>
+      <SectionTitle subtitle="Compras realizadas a través de catálogo de Convenio Marco">Convenio Marco</SectionTitle>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard icon={Package} label="Órdenes" value={fmtNum(CONVENIO_MARCO.total)} hint="27,7% del total" />
+        <KPICard icon={DollarSign} label="Monto" value={fmtCLP(CONVENIO_MARCO.monto)} hint="0,05% del gasto" />
+        <KPICard icon={Activity} label="Ticket Promedio" value={fmtCLP(CONVENIO_MARCO.monto / CONVENIO_MARCO.total)} hint="Tickets muy bajos" />
+        <KPICard icon={CheckCircle2} label="Conformes" value={fmtNum(CONVENIO_MARCO.conformes)} hint="58% recibidas" />
+      </div>
+    </div>
+  </div>
+);
+
+// ============================================================
+// VISTA TENDENCIAS
+// ============================================================
+
+const VistaTendencias = () => (
+  <div className="space-y-8">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Card title="Órdenes Emitidas por Mes" subtitle="Volumen mensual" className="lg:col-span-2">
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={SERIE_MENSUAL}>
+            <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
+            <XAxis dataKey="mes" stroke="#78716c" fontSize={11} />
+            <YAxis stroke="#78716c" fontSize={11} />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0].payload;
+                return (
+                  <div className="bg-stone-900 text-stone-50 px-3 py-2 text-xs">
+                    <div className="font-medium mb-1">{label} 2026</div>
+                    <div className="font-mono">{d.ordenes} órdenes</div>
+                    <div className="font-mono text-stone-300">{fmtCLPFull(d.montoFull)}</div>
+                  </div>
+                );
+              }}
+            />
+            <Bar dataKey="ordenes" name="Órdenes" fill="#1e3a5f" radius={[2, 2, 0, 0]} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </Card>
+
+      <Card title="Promedios" subtitle="Período Ene – May 2026">
+        <div className="space-y-5 py-2">
+          <div className="pb-4 border-b border-stone-100">
+            <div className="text-xs uppercase tracking-widest text-stone-500 mb-1">Órdenes/mes</div>
+            <div className="font-serif text-3xl text-stone-900">{Math.round(KPI.ordenes / 5)}</div>
+            <div className="text-xs text-stone-500 mt-1">Promedio en 5 meses</div>
+          </div>
+          <div className="pb-4 border-b border-stone-100">
+            <div className="text-xs uppercase tracking-widest text-stone-500 mb-1">Mes peak</div>
+            <div className="font-serif text-3xl text-stone-900">Marzo</div>
+            <div className="text-xs text-stone-500 mt-1">66 órdenes · $84,4 MMM</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-widest text-stone-500 mb-1">Mes valle</div>
+            <div className="font-serif text-3xl text-stone-900">Enero</div>
+            <div className="text-xs text-stone-500 mt-1">5 órdenes · $4,1 M</div>
+          </div>
+        </div>
+      </Card>
+    </div>
+
+    <Card title="Monto Transado por Mes" subtitle="Evolución en millones de pesos · escala logarítmica por concentración en marzo">
+      <ResponsiveContainer width="100%" height={320}>
+        <AreaChart data={SERIE_MENSUAL}>
+          <defs>
+            <linearGradient id="gradMonto" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#c97b3c" stopOpacity={0.5} />
+              <stop offset="100%" stopColor="#c97b3c" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
+          <XAxis dataKey="mes" stroke="#78716c" fontSize={11} />
+          <YAxis stroke="#78716c" fontSize={11} scale="log" domain={['auto', 'auto']} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(0)}MMM` : `$${v}M`} />
+          <Tooltip
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0].payload;
+              return (
+                <div className="bg-stone-900 text-stone-50 px-3 py-2 text-xs">
+                  <div className="font-medium mb-1">{label} 2026</div>
+                  <div className="font-mono">{fmtCLPFull(d.montoFull)}</div>
+                </div>
+              );
+            }}
+          />
+          <Area type="monotone" dataKey="monto" stroke="#c97b3c" strokeWidth={2.5} fill="url(#gradMonto)" />
+        </AreaChart>
+      </ResponsiveContainer>
+    </Card>
+
+    <Card title="Modalidades por Mes" subtitle="Cantidad de órdenes por tipo de compra y mes">
+      <ResponsiveContainer width="100%" height={320}>
+        <BarChart data={SERIE_POR_MODALIDAD}>
+          <CartesianGrid strokeDasharray="2 4" stroke="#e7e5e4" vertical={false} />
+          <XAxis dataKey="mes" stroke="#78716c" fontSize={11} />
+          <YAxis stroke="#78716c" fontSize={11} />
+          <Tooltip content={<TooltipCustom />} />
+          <Bar dataKey="Compra Ágil" stackId="a" fill={MODALIDAD_COLOR['Compra Ágil']} />
+          <Bar dataKey="Convenio Marco" stackId="a" fill={MODALIDAD_COLOR['Convenio Marco']} />
+          <Bar dataKey="Licitación / Sin Emisión" stackId="a" fill={MODALIDAD_COLOR['Licitación / Sin Emisión']} />
+          <Bar dataKey="Trato Directo" stackId="a" fill={MODALIDAD_COLOR['Trato Directo']} />
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-stone-100">
+        {Object.entries(MODALIDAD_COLOR).map(([k, v]) => (
+          <div key={k} className="flex items-center gap-2 text-xs">
+            <span className="w-3 h-3" style={{ background: v }} />
+            <span className="text-stone-700">{k}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card title="Hallazgos Clave" subtitle="Análisis del período">
+        <div className="space-y-3 text-sm">
+          <div className="flex items-start gap-3">
+            <TrendingUp size={16} className="text-amber-700 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
+            <div>
+              <div className="font-medium text-stone-900">Concentración en marzo</div>
+              <div className="text-stone-600 text-xs mt-1">El 98% del monto del período se ejecutó en marzo (subida estacional)</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <AlertCircle size={16} className="text-red-700 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
+            <div>
+              <div className="font-medium text-stone-900">Riesgo de concentración</div>
+              <div className="text-stone-600 text-xs mt-1">Top 2 proveedores acumulan 88% del gasto</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <CheckCircle2 size={16} className="text-emerald-700 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
+            <div>
+              <div className="font-medium text-stone-900">Velocidad operativa</div>
+              <div className="text-stone-600 text-xs mt-1">Mediana de envío: 37 minutos desde creación</div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Mix Modal" subtitle="Composición de las 112 órdenes">
+        <div className="space-y-3 py-2">
+          {[...MODALIDADES].sort((a, b) => b.cantidad - a.cantidad).map((m, i) => {
+            const pct = ((m.cantidad / 112) * 100).toFixed(1);
+            return (
+              <div key={i}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-stone-700">{m.nombre}</span>
+                  <span className="font-mono text-stone-900">{pct}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-stone-100">
+                  <div className="h-full" style={{ width: `${pct}%`, background: m.color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card title="Alertas" subtitle="Métricas a monitorear">
+        <div className="space-y-3">
+          <div className="flex items-start gap-2 text-sm">
+            <span className="w-1.5 h-1.5 bg-red-700 mt-2 flex-shrink-0" />
+            <div>
+              <div className="text-stone-900 font-medium text-xs">8 tratos directos sin emitir</div>
+              <div className="text-stone-500 text-xs mt-0.5">Estado "Guardada" pendiente</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <span className="w-1.5 h-1.5 bg-amber-600 mt-2 flex-shrink-0" />
+            <div>
+              <div className="text-stone-900 font-medium text-xs">6 OC eliminadas</div>
+              <div className="text-stone-500 text-xs mt-0.5">Revisar causales para mejorar proceso</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <span className="w-1.5 h-1.5 bg-emerald-700 mt-2 flex-shrink-0" />
+            <div>
+              <div className="text-stone-900 font-medium text-xs">Alta tasa de recepción conforme</div>
+              <div className="text-stone-500 text-xs mt-0.5">54,5% del total ya tiene recepción</div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  </div>
+);
+
+// ============================================================
+// APP PRINCIPAL
+// ============================================================
+
+export default function Dashboard() {
+  const [tab, setTab] = useState('general');
+
+  const tabs = [
+    { id: 'general', label: 'General', icon: Activity },
+    { id: 'estados', label: 'Estados y Licitaciones', icon: Gavel },
+    { id: 'agil-directo', label: 'Ágil · Directo · CM', icon: Zap },
+    { id: 'tendencias', label: 'Tendencias', icon: TrendingUp },
+  ];
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: '"Inter", system-ui, sans-serif' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@300;400;500;600&display=swap');
+        .font-serif { font-family: 'Fraunces', Georgia, serif; }
+        body { font-family: 'Inter', system-ui, sans-serif; }
+      `}</style>
+
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
+        <div className="max-w-[1400px] mx-auto px-6 py-5">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-stone-900 flex items-center justify-center">
+                <span className="text-stone-50 font-serif text-xl">GB</span>
+              </div>
+              <div>
+                <h1 className="font-serif text-2xl text-stone-900 tracking-tight leading-none">
+                  Dashboard de Compras Públicas
+                </h1>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <MapPin size={12} className="text-stone-400" strokeWidth={1.5} />
+                  <p className="text-xs text-stone-500 tracking-wide">
+                    Gobierno Regional de la Región del Bío Bío · Consolidado
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-xs text-stone-500">
+                <Calendar size={14} strokeWidth={1.5} />
+                <span>Ene – 7 May 2026</span>
+              </div>
+              <div className="border-l border-stone-200 pl-3 text-xs text-stone-500">
+                <span className="font-mono">112 OC</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-stone-100">
+          <div className="max-w-[1400px] mx-auto px-6">
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {tabs.map((t) => (
+                <TabButton key={t.id} active={tab === t.id} onClick={() => setTab(t.id)} icon={t.icon}>
+                  {t.label}
+                </TabButton>
+              ))}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-[1400px] mx-auto px-6 py-8">
+        {tab === 'general' && <VistaGeneral />}
+        {tab === 'estados' && <VistaLicitaciones />}
+        {tab === 'agil-directo' && <VistaAgilDirecto />}
+        {tab === 'tendencias' && <VistaTendencias />}
+      </main>
+
+      <footer className="border-t border-stone-200 mt-12">
+        <div className="max-w-[1400px] mx-auto px-6 py-6 flex items-center justify-between text-xs text-stone-500 flex-wrap gap-2">
+          <div>Fuente: Mercado Público · 2 listados consolidados al 11-05-2026</div>
+          <div className="flex items-center gap-4">
+            <span>Datos reales</span>
+            <span className="w-1 h-1 bg-stone-300" />
+            <span>112 órdenes · 68 proveedores</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
